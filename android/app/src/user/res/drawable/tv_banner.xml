@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Banner provisional para Google TV (320x180). Reemplazar por el diseño final en el Sprint 5. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="180dp"
+    android:viewportWidth="320"
+    android:viewportHeight="180">
+    <path
+        android:fillColor="#2E7D6B"
+        android:pathData="M0,0h320v180h-320z" />
+    <!-- Mancuerna estilizada -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M110,70h14v40h-14z M124,62h12v56h-12z M136,84h48v12h-48z M184,62h12v56h-12z M196,70h14v40h-14z" />
+</vector>

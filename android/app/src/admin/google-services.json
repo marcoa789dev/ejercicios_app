@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "938010835760",
+    "project_id": "ejercicios-app-fn07",
+    "storage_bucket": "ejercicios-app-fn07.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:938010835760:android:91d2515487e6207f6ba6f5",
+        "android_client_info": {
+          "package_name": "com.ejerciciosapp.admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQyul3wy3i3naJH37dB2U4j0nHz1enOyg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:938010835760:android:1433a667d3dcce146ba6f5",
+        "android_client_info": {
+          "package_name": "com.ejerciciosapp.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBQyul3wy3i3naJH37dB2U4j0nHz1enOyg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
