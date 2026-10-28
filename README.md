@@ -40,8 +40,18 @@ flutter run --flavor user -t lib/main_user.dart -d <IP>:5555
 
 ## Videos (resolución original, nunca se reescala)
 
+Los videos viven en `Videos/{categoria}/semana-N/diaD-OO-titulo.mp4` (ignorado por git) y se publican en el bucket R2 `ejercicios-media`.
+
 ```powershell
-.\tools\check_videos.ps1   -Dir C:\Users\sis\Videos\Ejercicios\originales
-.\tools\prepare_videos.ps1 -Src C:\Users\sis\Videos\Ejercicios\originales -Out C:\Users\sis\Videos\Ejercicios\listos
-rclone copy C:\Users\sis\Videos\Ejercicios\listos r2:ejercicios-media --progress
+.\tools\check_videos.ps1    -Dir .\Videos   # analiza códecs, resolución, duración y peso
+.\tools\compress_videos.ps1 -Dir .\Videos   # H.264 misma resolución, ~41 % menos; reemplaza el original tras verificarlo
+rclone copy .\Videos r2:ejercicios-media --include "*.{mp4,webp}" --progress
+cd tools; npm install; node seed.mjs --dry-run; node seed.mjs   # carga tools/catalogo.csv en Firestore
+```
+
+## Reglas de Firestore
+
+```powershell
+cd rules_test; npm install; npm run test:emulador   # 26 pruebas contra el emulador
+firebase deploy --only firestore:rules,firestore:indexes
 ```

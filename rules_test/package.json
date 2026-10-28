@@ -1,0 +1,14 @@
+{
+  "name": "ejercicios-rules-test",
+  "private": true,
+  "type": "module",
+  "description": "Pruebas de firestore.rules contra el emulador de Firestore",
+  "scripts": {
+    "test": "node --test --test-concurrency=1",
+    "test:emulador": "firebase emulators:exec --only firestore --project demo-ejercicios \"npm test\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
+    "firebase": "^13.1.0"
+  }
+}

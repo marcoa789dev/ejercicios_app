@@ -1,6 +1,6 @@
 # PLAN MAESTRO — "EJERCICIOS APP" (ADMIN + USUARIO, ANDROID MÓVIL + GOOGLE TV)
 
-**Versión:** 3.2 — alcance definitivo (uso doméstico)
+**Versión:** 3.3 — alcance definitivo (uso doméstico)
 **Fecha:** 27 de octubre de 2026
 **Documento base:** `documento_de_especificaciones_t_cnicas_y_planeaci_n.md` (sin modificar)
 
@@ -9,6 +9,8 @@
 > **Cambios de la v3.1:** cada integrante tiene **su propio usuario y contraseña**, creados por el admin desde la Admin App (sustituye a la cuenta familiar compartida); la TV es un **Chromecast con Google TV**; los videos están hoy en una **USB en MP4** (flujo en §8.3); Cloudflare R2 confirmado.
 >
 > **Cambios de la v3.2:** la TV inicia sesión **escaneando un QR** con el teléfono del integrante (§12.6), sin cuenta de TV; se añade **transmitir con Google Cast** desde el teléfono (§11.7); los videos se reproducen **siempre en su resolución original**, sin reescalar (§8.3–8.4).
+>
+> **Cambios de la v3.3:** el **avance de cada video se guarda en Firestore por integrante** y se reanuda donde se quedó, en cualquier dispositivo: teléfono, TV o Cast (§8.6). Pasa de *Should* a *Must*.
 
 ---
 
@@ -120,7 +122,7 @@ Soporte para Google TV, cuentas por integrante gestionadas desde la Admin App, i
 | RF-U07 | Instrucciones del ejercicio (series, repeticiones, texto). | Must |
 | RF-U08 | Marcar/desmarcar completado + auto-completar al 90 % del video. | Must |
 | RF-U09 | "Siguiente ejercicio" al terminar un video. | Must |
-| RF-U10 | Reanudar un video desde donde se dejó. | Should |
+| RF-U10 | **Guardar el avance de cada video y reanudar donde se quedó**, por integrante y en cualquier dispositivo (teléfono, TV, Cast), incluso si la app se cierra de golpe o se pierde la conexión (§8.6). | Must |
 | RF-U11 | Pantalla encendida durante la reproducción. | Must |
 | RF-U12 | Error con "Reintentar" ante fallos de red o de video. | Must |
 | RF-U13 | Navegación completa con el control remoto en Google TV (D-pad, OK, Atrás, Play/Pausa). | Must |
@@ -158,7 +160,7 @@ Soporte para Google TV, cuentas por integrante gestionadas desde la Admin App, i
 | 008 | **Plan Spark (gratuito) de Firebase**, sin Storage | Las portadas también van en R2; Firestore, Auth y Crashlytics son gratis a esta escala. |
 | 009 | **`video_player` con controles propios** (sin `chewie`) | Los controles de `chewie` no están pensados para el D-pad; los propios permiten foco, teclas multimedia y la misma interfaz en teléfono y TV. |
 | 010 | **go_router** | Rutas claras y redirecciones (login o QR en la TV → home). |
-| 011 | **freezed + json_serializable** | Modelos inmutables y estados sellados. |
+| 011 | ~~freezed + json_serializable~~ → **clases inmutables simples + mapeo manual** (cambio del Sprint 1) | Dart 3.13 introdujo la sintaxis de constructor `new(...)` y no conviene depender de que el generador de freezed la soporte todavía. El mapeo manual en `core/data/firestore_mappers.dart` además tolera documentos incompletos. Se puede reconsiderar freezed más adelante. |
 | 012 | **APK universal** (sin `--split-per-abi`) | Muchos Google TV usan sistema de 32 bits aunque su CPU sea de 64; el APK universal funciona en todos. |
 
 ---
@@ -261,6 +263,10 @@ abstract interface class MemberAdminRepository {
 abstract interface class ProgressRepository {
   Stream<Map<String, PlaylistProgress>> watchProgress(String memberId);
   Future<Result<void>> setCompleted(String memberId, String playlistId, String videoId, bool done);
+  // Avance del video (§8.6). savePosition escribe positions.{videoId} y last_video_id;
+  // clearPosition lo borra al terminar el video o con "Empezar de nuevo".
+  Future<Result<void>> savePosition(String memberId, String playlistId, String videoId, Duration position);
+  Future<Result<void>> clearPosition(String memberId, String playlistId, String videoId);
 }
 
 abstract interface class TvLinkRepository {
@@ -309,7 +315,7 @@ abstract interface class AuthRepository {
 | `connectivity_plus` | aviso "sin conexión" | ambos |
 | `video_player` | reproducción (ExoPlayer) | ambos (admin para "Probar video") |
 | `wakelock_plus` | pantalla encendida | user |
-| `shared_preferences` | posición de reproducción por integrante | user |
+| `shared_preferences` | preferencias locales del dispositivo (el avance de los videos va en Firestore, §8.6) | user |
 | `package_info_plus` + `url_launcher` | aviso de actualización del APK | user |
 | `qr_flutter` | dibujar el QR en la TV | user |
 | `mobile_scanner` | escanear el QR con la cámara del teléfono | user |
@@ -321,7 +327,7 @@ abstract interface class AuthRepository {
 ## 6. MODELO DE DATOS FIRESTORE
 
 ### 6.1 Convenciones
-IDs generados por Firestore; campos en `snake_case`; fechas con `serverTimestamp()`; `is_active` en todo el catálogo; `order` entero para el orden manual.
+IDs generados por Firestore para lo que crea la Admin App; el catálogo cargado con `tools/seed.mjs` usa **IDs deterministas** (`rodilla`, `rodilla-s1`, `rodilla-s1-d1-01`) para poder volver a ejecutarlo sin duplicar; campos en `snake_case`; fechas con `serverTimestamp()`; `is_active` en todo el catálogo; `order` entero para el orden manual.
 
 ### 6.2 Catálogo
 ```json
@@ -371,13 +377,16 @@ IDs generados por Firestore; campos en `snake_case`; fechas con `serverTimestamp
   "created_at": "Timestamp", "expires_at": "Timestamp (máx. 12 h)" }
 
 // members/{memberId}/progress/{playlistId}
-{ "playlist_id": "…", "completed_video_ids": ["v1", "v2"], "last_video_id": "v2",
+{ "playlist_id": "…", "completed_video_ids": ["v1", "v2"],
+  "positions": { "v3": 151 },          // segundos vistos de cada video a medias (§8.6)
+  "last_video_id": "v3",               // el último que se estaba viendo → "Continuar"
   "started_at": "Timestamp", "updated_at": "Timestamp", "completed_at": null }
 
 // app_config/latest_user_apk                   (opcional, RF-A11 / RF-U14)
 { "version_code": 7, "version_name": "1.2.0",
   "apk_url": "https://media…/apk/ejercicios-1.2.0.apk", "notes": "Nuevo modo TV" }
 ```
+- **Avance del video:** `positions` solo guarda los videos que están a medias; al terminar uno se borra su entrada (`FieldValue.delete()`). Se escribe con `set(..., SetOptions(merge: true))` sobre `positions.{videoId}`, así no pisa el resto del documento. El tamaño está acotado por los videos de la playlist.
 - **% de progreso** = videos activos de la playlist que están en `completed_video_ids` ÷ `total_videos` (la intersección evita pasar del 100 % si se borra un video).
 - Marcar/desmarcar con `FieldValue.arrayUnion` / `arrayRemove`: funciona sin conexión y no se duplica.
 - **Agregados** (`total_videos`, `total_duration_seconds`, `days_count`): la Admin App los recalcula en la misma `runTransaction` que guarda o borra el video.
@@ -503,7 +512,15 @@ service cloud.firestore {
           .hasOnly(['last_playlist_id', 'updated_at']));
 
       match /progress/{playlistId} {
-        allow read, write: if canActAs(memberId);
+        allow read, delete: if canActAs(memberId);
+        allow create, update: if canActAs(memberId)
+          && request.resource.data.keys().hasOnly(['playlist_id', 'completed_video_ids',
+               'positions', 'last_video_id', 'started_at', 'updated_at', 'completed_at'])
+          && request.resource.data.playlist_id == playlistId
+          && request.resource.data.get('completed_video_ids', []) is list
+          && request.resource.data.get('completed_video_ids', []).size() <= 100
+          && request.resource.data.get('positions', {}) is map
+          && request.resource.data.get('positions', {}).size() <= 100;
       }
     }
 
@@ -666,10 +683,42 @@ Get-ChildItem $inDir -Include *.mp4,*.mov,*.mkv -Recurse | ForEach-Object {
 - `VideoPlayerController.networkUrl(...)` con un límite de 15 s para iniciar.
 - Estados: `initializing → ready(playing | paused) → buffering → completed | failure(network | timeout | source)`.
 - Mensajes: *Sin conexión* (Reintentar) · *El video tarda demasiado* (Reintentar) · *Este video no está disponible* (se reporta a Crashlytics con el ID del video).
-- Guardar la posición cada 5 s y al salir (`shared_preferences`, clave `pos_{integrante}_{video}`); reanudar si está entre 5 s y el 90 %.
+- Guardar el avance y reanudar donde se quedó: §8.6.
 - Al 90 %: marcar como completado automáticamente.
 - `WakelockPlus.enable()` al reproducir y `disable()` al pausar o salir.
 - Controles propios que funcionan igual con el dedo y con el control remoto (§11.4).
+
+### 8.6 Guardar el avance y reanudar (RF-U10)
+**Objetivo:** si alguien deja un video a medias, al volver a abrirlo (en el mismo u otro dispositivo) sigue donde se quedó.
+
+**Cuándo se guarda** (`ProgressRepository.savePosition`, en `members/{id}/progress/{playlistId}.positions.{videoId}`):
+| Momento | Por qué |
+|---|---|
+| Cada **10 s** mientras se reproduce, solo si avanzó ≥ 5 s desde la última vez | Si la app se cierra de golpe o se va la luz, se pierden como máximo 10 s |
+| Al **pausar** | Lo más común antes de dejar el video |
+| Al **adelantar o atrasar** (al soltar la barra o tras ±10 s) | Guarda el punto elegido |
+| Al **salir** del reproductor (Atrás, siguiente ejercicio) | Cierre normal |
+| Cuando la app pasa a **segundo plano** (`AppLifecycleState.paused`/`inactive`): botón Inicio, llamada, pantalla apagada, TV apagada | Casos en que la app puede morir sin aviso |
+| Durante **Cast**, cada 10 s con la posición que reporta el Chromecast | El teléfono es quien guarda |
+
+**Cuándo se borra** (`clearPosition`): al llegar al **95 %** o al final del video (además de marcarlo completado al 90 %), y con el botón "Empezar de nuevo".
+
+**Cómo se reanuda:**
+1. Al abrir un video se lee `positions.{videoId}` (desde la caché de Firestore, así que es instantáneo y funciona sin red).
+2. Si hay avance **entre 5 s y el 95 %** de la duración: se empieza **3 s antes** del punto guardado, para retomar el movimiento del ejercicio.
+3. Aparece un aviso durante 6 s: **"Continuando desde 02:31 · [Empezar de nuevo]"**. En la TV, el botón se alcanza con ↓ y OK sigue siendo Play/Pausa.
+4. Si no hay avance o pasa del 95 %: empieza desde 0.
+5. Los videos completados que se vuelven a abrir empiezan desde 0 (repetir un ejercicio es lo normal).
+
+**Dónde se ve el avance:**
+- **Home → "Continuar":** usa `last_playlist_id` + `last_video_id` + su posición. Ejemplo: "Continuar · Extensiones de cuádriceps · 02:31 de 07:00", con una barra pequeña.
+- **Detalle de playlist:** los videos a medias muestran una barra de avance bajo la miniatura y el texto "Visto 02:31 de 07:00" en lugar de ○.
+
+**Varios dispositivos:** si el mismo integrante ve un video en el teléfono y luego en la TV, gana el último guardado (`updated_at`). Sin conexión, Firestore guarda las escrituras en la cola local y las sube al reconectar.
+
+**Costo:** ~6 escrituras por minuto de video. Con 4 personas × 1 h/día son ≈ 1 500 escrituras/día; el límite gratuito es de 20 000.
+
+**Pruebas:** `bloc_test` del `PlayerBloc`: guarda cada 10 s, al pausar, al salir y al ir a segundo plano; reanuda 3 s antes; no reanuda por debajo de 5 s ni por encima del 95 %; borra al terminar. Con `fake_cloud_firestore`: la escritura con *merge* no pisa `completed_video_ids`.
 
 ---
 
@@ -729,10 +778,10 @@ Cargando (shimmer) · Vacía (mensaje + botón "Crear…") · Error (Reintentar)
 - **Vincular TV** (Ajustes, y también un botón en el Home si hay una TV esperando): abre la cámara, escanea el QR de la TV y confirma "¿Entrar en la TV como {nombre}?" (§12.6).
 - **Home:**
   - Saludo "Hola, {nombre}" (en la TV, con un botón "Salir" que vuelve al QR para que entre otra persona).
-  - Tarjeta **Continuar** → siguiente video pendiente de `last_playlist_id`.
+  - Tarjeta **Continuar** → el video a medias (`last_video_id`) en el segundo exacto donde se quedó; si no hay ninguno a medias, el siguiente pendiente de `last_playlist_id` (§8.6).
   - Chips de categorías.
   - Tarjetas de playlists: portada 16:9, título, nivel, "5 ejercicios · 45 min", barra con %, ✓ al 100 %.
-- **Detalle de playlist:** portada, objetivo, nivel, duración total; lista por días ("Día 1 · 2 ejercicios · 12 min") con ○/✓; botón "Empezar" o "Continuar día N".
+- **Detalle de playlist:** portada, objetivo, nivel, duración total; lista por días ("Día 1 · 2 ejercicios · 12 min") con ○ / barra de avance "Visto 02:31 de 07:00" / ✓; botón "Empezar" o "Continuar día N".
 - **Reproductor:**
 ```
 ┌───────────────────────────────┐
@@ -832,6 +881,7 @@ Es otra forma de ver los videos en la TV, sin usar la app del Chromecast: el tel
 3. El teléfono muestra controles remotos: play/pausa, ±10 s, barra de progreso, "Siguiente ejercicio" (envía el siguiente video).
 4. El progreso sigue funcionando: el teléfono lee la posición del Chromecast y marca el video como completado al 90 % o con el botón.
 5. Al desconectar, el video sigue en el teléfono desde la misma posición.
+6. Al empezar a transmitir un video a medias, se envía con `startAt` = posición guardada − 3 s; el avance se sigue guardando cada 10 s (§8.6).
 
 | Detalle | Valor |
 |---|---|
@@ -939,7 +989,7 @@ Ajustes → "Cambiar mi contraseña": `reauthenticateWithCredential` con la actu
 | Repositorios | `fake_cloud_firestore` | consultas, transacción de agregados, reordenamiento, `arrayUnion/Remove` |
 | Estado | `bloc_test` | Cubits de catálogo y formularios, `PlayerBloc` (incluidos los errores) |
 | Widgets | `flutter_test` | tarjetas, formularios, ErrorView, **navegación con teclado simulado** (`tester.sendKeyEvent(LogicalKeyboardKey.arrowRight)`) para el modo TV |
-| Reglas | Emulador de Firebase + `@firebase/rules-unit-testing` | integrante lee el catálogo ✅ · cuenta sin `accounts` lee ❌ · cuenta desactivada lee ❌ · integrante escribe el progreso de otro ❌ · TV anónima sin aprobar lee el catálogo ❌ · TV aprobada escribe el progreso de quien la aprobó ✅ y el de otro ❌ · TV con la sesión vencida lee ❌ · integrante aprueba una TV con un nonce incorrecto ❌ · integrante aprueba una TV a nombre de otro ❌ · integrante se escribe a sí mismo en `accounts` ❌ · integrante cambia su nombre ❌ · admin escribe un video con `day_number: 8` ❌ |
+| Reglas | Emulador de Firebase + `@firebase/rules-unit-testing` | integrante lee el catálogo ✅ · cuenta sin `accounts` lee ❌ · cuenta desactivada lee ❌ · integrante escribe el progreso de otro ❌ · TV anónima sin aprobar lee el catálogo ❌ · TV aprobada escribe el progreso de quien la aprobó ✅ y el de otro ❌ · TV con la sesión vencida lee ❌ · integrante aprueba una TV con un nonce incorrecto ❌ · integrante aprueba una TV a nombre de otro ❌ · progreso con un campo extra ❌ · `positions` que no es mapa ❌ · integrante se escribe a sí mismo en `accounts` ❌ · integrante cambia su nombre ❌ · admin escribe un video con `day_number: 8` ❌ |
 | Manual | dispositivos reales | teléfono de cada integrante de la familia + el Google TV: reproducir con WiFi lento, cortar el WiFi a mitad del video, salir y volver, control remoto en todas las pantallas |
 
 Meta: lógica de `lib/core` con ≥ 80 % de cobertura; `flutter analyze` sin advertencias.
@@ -1024,7 +1074,7 @@ También sirve para depurar en vivo: `flutter run --flavor user -t lib/main_user
 
 | Servicio | Uso estimado | Costo |
 |---|---|---|
-| Firebase Spark (Auth, Firestore, Crashlytics) | 4 usuarios: < 2 000 lecturas/día (límite gratuito: 50 000) | **USD 0** |
+| Firebase Spark (Auth, Firestore, Crashlytics) | 4 usuarios: < 2 000 lecturas/día (límite gratuito: 50 000) y ≈ 1 500 escrituras/día por el avance de los videos (límite gratuito: 20 000) | **USD 0** |
 | Cloudflare R2 | ~7 GB almacenados en resolución original (gratis hasta 10 GB); salida de datos gratis; lecturas muy por debajo de los 10 millones/mes gratis | **USD 0** |
 | Google Play / Apple | No se usan | USD 0 |
 | **Total** | | **USD 0 / mes** |
@@ -1049,11 +1099,11 @@ Si algún día el contenido pasa de 10 GB, R2 cobra alrededor de USD 0.015 por G
 - **Listo cuando:** ambos flavors arrancan en el emulador conectados a Firebase y el video de prueba se reproduce desde R2 en un `VideoPlayer` mínimo **en el Chromecast real** (instalado por `adb`).
 
 ### Sprint 1 — Backend y núcleo
-- [ ] `firestore.rules` + índices + pruebas de reglas en el emulador; desplegar.
-- [ ] `lib/core`: entidades, DTOs, `Result`, `VideoUrlResolver` + pruebas.
-- [ ] Repositorios + pruebas con `fake_cloud_firestore`.
-- [ ] `ui_kit`: tema, `FocusableCard`, ErrorView, EmptyView, Shimmer.
-- [ ] Videos (§8.3): copiar de la USB, analizar con `check_videos.ps1`, reacomodar/recodificar, llenar `catalogo.csv`, subir a R2 con rclone y cargar el catálogo con `seed.mjs`.
+- [x] `firestore.rules` (admin UID `EVjSnowTIpQXQ1vuv3mBpWlxGvs1`) + índices + **26 pruebas de reglas** en el emulador (`rules_test/`, `npm run test:emulador`); **desplegadas** en `ejercicios-app-fn07` (28/10/2026).
+- [x] `lib/core`: entidades (`domain/catalog.dart`, `domain/progress.dart`), mapeo Firestore, `Result`/`Failure`, `VideoUrlResolver`, `ResumePolicy` (§8.6) + pruebas.
+- [x] `FirestoreCatalogRepository` y `FirestoreProgressRepository` (incluye `savePosition`/`clearPosition` con *merge*) + pruebas con `fake_cloud_firestore`.
+- [x] `ui_kit`: tema, `FocusableCard` (foco con D-pad), `ErrorView`, `EmptyView` + pruebas de teclado. *(Shimmer se deja para el Sprint 3, cuando haya listas reales.)*
+- [ ] Videos (§8.3): ✅ 21 videos copiados y renombrados (`Videos/{rodilla,cuello,hombro}/semana-1/`), ✅ `tools/catalogo.csv`, ⏳ compresión H.264 en curso con `tools/compress_videos.ps1` (misma resolución, ~41 % menos), ⏳ subir a R2 con rclone, ⏳ cargar el catálogo con `tools/seed.mjs` (probado en `--dry-run`).
 
 ### Sprint 2 — Admin App
 - [ ] Login con guardia de admin.
@@ -1063,7 +1113,8 @@ Si algún día el contenido pasa de 10 GB, R2 cobra alrededor de USD 0.015 por G
 
 ### Sprint 3 — User App en teléfono
 - [ ] Splash, login, "¿Quién entrena hoy?", Home, detalle de playlist.
-- [ ] Reproductor con controles propios, completado manual y al 90 %, siguiente ejercicio, reanudar, wakelock, errores.
+- [ ] Reproductor con controles propios, completado manual y al 90 %, siguiente ejercicio, wakelock, errores.
+- [ ] **Guardar el avance y reanudar** (§8.6): guardado cada 10 s, al pausar, al salir y en segundo plano; reanudar 3 s antes con "Empezar de nuevo"; barras de avance en "Continuar" y en el detalle.
 - [ ] Progreso por integrante, sin conexión incluido.
 - 🎯 **Hito:** la familia puede usarla en los teléfonos.
 

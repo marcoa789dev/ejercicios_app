@@ -1,0 +1,13 @@
+{
+  "name": "ejercicios-tools",
+  "private": true,
+  "type": "module",
+  "description": "Scripts de mantenimiento: carga del catálogo (seed.mjs)",
+  "scripts": {
+    "seed": "node seed.mjs",
+    "seed:prueba": "node seed.mjs --dry-run"
+  },
+  "dependencies": {
+    "firebase": "^13.1.0"
+  }
+}

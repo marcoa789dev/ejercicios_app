@@ -54,8 +54,12 @@ app.*.map.json
 *.keystore
 service-account*.json
 .env
-# Videos y análisis (viven fuera del repo, en C:\Users\sis\Videos\Ejercicios)
+# Videos y análisis (carpeta local Videos/ o C:\Users\sis\Videos\Ejercicios; nunca en git)
+/Videos/
 *.mp4
 *.mov
 *.mkv
 analisis_videos.csv
+
+# Dependencias de Node (pruebas de reglas, scripts)
+node_modules/

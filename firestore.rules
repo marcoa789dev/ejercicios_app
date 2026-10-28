@@ -1,11 +1,112 @@
 rules_version = '2';
 
-// Provisional (Sprint 0): todo cerrado.
-// Las reglas definitivas (PLAN_MAESTRO §7) se escriben y prueban en el Sprint 1.
+// Reglas de Ejercicios App (PLAN_MAESTRO §7). Pruebas: rules_test/ (npm test con el emulador).
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+
+    // ---------- Quién es quién ----------
+    // UID de la cuenta admin (marcoa789.dev@gmail.com). Los UID no son secretos.
+    function adminUid() { return 'EVjSnowTIpQXQ1vuv3mBpWlxGvs1'; }
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin()  { return signedIn() && request.auth.uid == adminUid(); }
+
+    // Integrante: cuenta dada de alta por el admin en accounts/{uid} y activa
+    function accPath()  { return /databases/$(database)/documents/accounts/$(request.auth.uid); }
+    function acc()      { return get(accPath()).data; }
+    function isUser()   { return signedIn() && exists(accPath()) && acc().is_active == true; }
+
+    // TV vinculada por QR: su UID anónimo tiene una sesión vigente de un integrante activo
+    function tvPath()   { return /databases/$(database)/documents/tv_sessions/$(request.auth.uid); }
+    function tvMember() { return get(tvPath()).data.member_id; }
+    function isLinkedTv() {
+      return signedIn() && exists(tvPath())
+        && request.time < get(tvPath()).data.expires_at
+        && get(/databases/$(database)/documents/members/$(tvMember())).data.is_active == true;
     }
+
+    function isHouse()  { return isAdmin() || isUser() || isLinkedTv(); }
+
+    // Quién registra progreso de un integrante: él mismo (teléfono o TV que vinculó) o el admin
+    function canActAs(memberId) {
+      return isAdmin()
+        || (isUser() && acc().member_id == memberId)
+        || (isLinkedTv() && tvMember() == memberId);
+    }
+
+    // ---------- Validadores ----------
+    function validVideo() {
+      let d = request.resource.data;
+      return d.title is string && d.title.size() > 0 && d.title.size() <= 120
+        && d.day_number is int && d.day_number >= 1 && d.day_number <= 7
+        && d.stream_url is string && d.stream_url.matches('^https://.+')
+        && d.video_source in ['r2', 'direct_mp4', 'google_drive'];
+    }
+
+    // ---------- Catálogo ----------
+    match /categories/{id} { allow read: if isHouse(); allow write: if isAdmin(); }
+    match /playlists/{id}  { allow read: if isHouse(); allow write: if isAdmin(); }
+    match /videos/{id} {
+      allow read: if isHouse();
+      allow create, update: if isAdmin() && validVideo();
+      allow delete: if isAdmin();
+    }
+    match /app_config/{id} { allow read: if isHouse(); allow write: if isAdmin(); }
+
+    // ---------- Cuentas ----------
+    match /accounts/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow write: if isAdmin();
+    }
+
+    // ---------- Vinculación de la TV por QR (§12.6) ----------
+    // La TV publica su solicitud (el nonce que va en el QR)
+    match /tv_link_requests/{tvUid} {
+      allow read, delete: if signedIn() && request.auth.uid == tvUid;
+      allow create, update: if signedIn() && request.auth.uid == tvUid
+        && request.resource.data.keys().hasOnly(['nonce', 'created_at'])
+        && request.resource.data.nonce is string && request.resource.data.nonce.size() >= 32;
+    }
+
+    // El teléfono que escanea el QR aprueba la TV a nombre de SU integrante
+    match /tv_sessions/{tvUid} {
+      function involved() {
+        return request.auth.uid == tvUid || isAdmin()
+          || (isUser() && resource.data.member_id == acc().member_id);
+      }
+      allow read, delete: if signedIn() && involved();
+      allow create, update: if isUser()
+        && request.resource.data.member_id == acc().member_id
+        && request.resource.data.approved_by == request.auth.uid
+        && request.resource.data.nonce ==
+             get(/databases/$(database)/documents/tv_link_requests/$(tvUid)).data.nonce
+        && request.resource.data.expires_at is timestamp
+        && request.resource.data.expires_at <= request.time + duration.value(12, 'h');
+    }
+
+    // ---------- Integrantes y progreso ----------
+    match /members/{memberId} {
+      allow read: if isHouse();                 // nombres y colores para la interfaz
+      allow create, delete: if isAdmin();
+      // Un integrante solo puede tocar su "última playlist"; nombre, color y estado son del admin
+      allow update: if isAdmin() || (canActAs(memberId) &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['last_playlist_id', 'updated_at']));
+
+      match /progress/{playlistId} {
+        allow read, delete: if canActAs(memberId);
+        allow create, update: if canActAs(memberId)
+          && request.resource.data.keys().hasOnly(['playlist_id', 'completed_video_ids',
+               'positions', 'last_video_id', 'started_at', 'updated_at', 'completed_at'])
+          && request.resource.data.playlist_id == playlistId
+          && request.resource.data.get('completed_video_ids', []) is list
+          && request.resource.data.get('completed_video_ids', []).size() <= 100
+          && request.resource.data.get('positions', {}) is map
+          && request.resource.data.get('positions', {}).size() <= 100;
+      }
+    }
+
+    // Todo lo demás: denegado
+    match /{document=**} { allow read, write: if false; }
   }
 }
