@@ -114,14 +114,31 @@ class _HomePageState extends State<HomePage> {
                         ),
                       );
                     }
-                    return Column(
-                      children: [
-                        for (final p in playlists)
-                          PlaylistCard(
-                            playlist: p,
-                            fraction: cardFraction(p, progress[p.id]),
+                    // Columnas de ~400 dp: 1 en el teléfono parado, 2+ acostado
+                    // o en la TV (una tarjeta nunca mide más que la pantalla)
+                    return LayoutBuilder(
+                      builder: (context, box) {
+                        final columns = (box.maxWidth / 400).floor().clamp(
+                          1,
+                          4,
+                        );
+                        final width = (box.maxWidth - 8) / columns;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Wrap(
+                            children: [
+                              for (final p in playlists)
+                                SizedBox(
+                                  width: width,
+                                  child: PlaylistCard(
+                                    playlist: p,
+                                    fraction: cardFraction(p, progress[p.id]),
+                                  ),
+                                ),
+                            ],
                           ),
-                      ],
+                        );
+                      },
                     );
                   },
                 ),
@@ -266,7 +283,7 @@ class PlaylistCard extends StatelessWidget {
     final p = playlist;
     final done = fraction >= 1;
     return Card(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      margin: const EdgeInsets.all(8),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => unawaited(context.push(UserRoutes.playlist, extra: p)),

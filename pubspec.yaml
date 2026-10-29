@@ -60,7 +60,10 @@ dev_dependencies:
   freezed: ^4.0.1
   json_serializable: ^6.15.2
   mocktail: ^1.0.5
+  plugin_platform_interface: ^2.1.8
   very_good_analysis: ^11.0.0
+  video_player_platform_interface: ^6.9.0
+  wakelock_plus_platform_interface: ^1.7.0
 
 flutter:
 

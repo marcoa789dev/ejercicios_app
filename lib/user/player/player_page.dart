@@ -6,7 +6,6 @@ import 'package:ejercicios_app/core/domain/progress.dart';
 import 'package:ejercicios_app/core/domain/repositories.dart';
 import 'package:ejercicios_app/core/utils/duration_format.dart';
 import 'package:ejercicios_app/core/utils/resume_policy.dart';
-import 'package:ejercicios_app/ui_kit/state_views.dart';
 import 'package:ejercicios_app/user/player/progress_tracker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -75,7 +74,7 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _hideTimer?.cancel();
-    unawaited(_release());
+    unawaited(_release(disposing: true));
     unawaited(WakelockPlus.disable());
     unawaited(SystemChrome.setPreferredOrientations([]));
     unawaited(SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge));
@@ -93,7 +92,10 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
   }
 
   /// Guarda el avance del video actual y libera el reproductor.
-  Future<void> _release() async {
+  ///
+  /// El reproductor viejo se libera después de que la pantalla deja de
+  /// mostrarlo, sin hacer esperar al siguiente video.
+  Future<void> _release({bool disposing = false}) async {
     final c = _controller;
     _controller = null;
     if (c == null) return;
@@ -101,7 +103,12 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     if (c.value.isInitialized) {
       await _tracker?.flush(c.value.position);
     }
-    await c.dispose();
+    if (disposing || !mounted) {
+      unawaited(c.dispose());
+      return;
+    }
+    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) => unawaited(c.dispose()));
   }
 
   void _flush() {
@@ -261,8 +268,9 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     if (_controlsVisible) _scheduleHide();
   }
 
-  Future<void> _toggleFullscreen() async {
-    final full = !_fullscreen;
+  /// Pantalla completa con el botón. Girar el teléfono también la activa
+  /// (ver `build`); al salir con el botón se regresa a vertical.
+  Future<void> _setFullscreen({required bool full}) async {
     setState(() => _fullscreen = full);
     await SystemChrome.setPreferredOrientations(
       full
@@ -275,6 +283,13 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
     await SystemChrome.setEnabledSystemUIMode(
       full ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
     );
+    if (!full) {
+      // Ya en vertical, se vuelve a permitir girar
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (mounted && !_fullscreen) {
+        await SystemChrome.setPreferredOrientations([]);
+      }
+    }
   }
 
   Future<void> _next() async {
@@ -306,12 +321,17 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Acostado (teléfono girado o TV) el video ocupa toda la pantalla:
+    // video 16:9 + información no caben a lo alto
+    final full =
+        _fullscreen ||
+        MediaQuery.orientationOf(context) == Orientation.landscape;
     final player = _PlayerSurface(
       controller: _controller,
       error: _error,
       ended: _ended,
       controlsVisible: _controlsVisible,
-      fullscreen: _fullscreen,
+      fullscreen: full,
       speed: _speed,
       onRetry: () => unawaited(_load()),
       onTap: _toggleControls,
@@ -319,15 +339,15 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       onSeekBy: _seekBy,
       onSeekTo: (p) => unawaited(_seekTo(p)),
       onSpeed: _cycleSpeed,
-      onFullscreen: () => unawaited(_toggleFullscreen()),
+      onFullscreen: () => unawaited(_setFullscreen(full: !full)),
     );
 
     return PopScope(
       canPop: !_fullscreen,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop && _fullscreen) unawaited(_toggleFullscreen());
+        if (!didPop && _fullscreen) unawaited(_setFullscreen(full: false));
       },
-      child: _fullscreen
+      child: full
           ? Scaffold(backgroundColor: Colors.black, body: player)
           : Scaffold(
               appBar: AppBar(title: Text(widget.playlist.title)),
@@ -351,58 +371,99 @@ class _PlayerPageState extends State<PlayerPage> with WidgetsBindingObserver {
       if (v.reps != null) '${v.reps} repeticiones',
     ].join(' × ');
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    // Los botones quedan fijos abajo: en un teléfono chico no hay que
+    // desplazarse para encontrar "Siguiente ejercicio"
+    return Column(
       children: [
-        Text(
-          'Día ${v.dayNumber} · Ejercicio $position de ${sameDay.length}',
-          style: theme.textTheme.labelLarge?.copyWith(
-            color: theme.colorScheme.primary,
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: _details(theme, v, position, sameDay.length, reps),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(v.title, style: theme.textTheme.titleLarge),
-        if (reps.isNotEmpty) ...[
-          const SizedBox(height: 4),
-          Text(reps, style: theme.textTheme.titleMedium),
-        ],
-        if (v.instructions.isNotEmpty)
-          ExpansionTile(
-            tilePadding: EdgeInsets.zero,
-            title: const Text('Instrucciones'),
-            children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(v.instructions),
-              ),
-            ],
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: StreamBuilder<Map<String, PlaylistProgress>>(
+                    stream: _progressStream,
+                    builder: (context, snap) {
+                      final done =
+                          snap.data?[widget.playlist.id]?.isCompleted(v.id) ??
+                          false;
+                      return OutlinedButton.icon(
+                        onPressed: _tracker == null
+                            ? null
+                            : () => unawaited(
+                                _tracker!.setCompleted(completed: !done),
+                              ),
+                        icon: Icon(
+                          done
+                              ? Icons.check_circle_rounded
+                              : Icons.circle_outlined,
+                        ),
+                        label: Text(
+                          done ? 'Completado' : 'Marcar como completado',
+                          maxLines: 2,
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => unawaited(_next()),
+                    icon: Icon(
+                      _isLast ? Icons.flag_rounded : Icons.skip_next_rounded,
+                    ),
+                    label: Text(
+                      _isLast ? 'Terminar la semana' : 'Siguiente ejercicio',
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        const SizedBox(height: 16),
-        StreamBuilder<Map<String, PlaylistProgress>>(
-          stream: _progressStream,
-          builder: (context, snap) {
-            final done =
-                snap.data?[widget.playlist.id]?.isCompleted(v.id) ?? false;
-            return OutlinedButton.icon(
-              onPressed: _tracker == null
-                  ? null
-                  : () => unawaited(_tracker!.setCompleted(completed: !done)),
-              icon: Icon(
-                done ? Icons.check_circle_rounded : Icons.circle_outlined,
-              ),
-              label: Text(done ? 'Completado' : 'Marcar como completado'),
-            );
-          },
-        ),
-        const SizedBox(height: 8),
-        FilledButton.icon(
-          onPressed: () => unawaited(_next()),
-          icon: Icon(_isLast ? Icons.flag_rounded : Icons.skip_next_rounded),
-          label: Text(_isLast ? 'Terminar la semana' : 'Siguiente ejercicio'),
         ),
       ],
     );
   }
+
+  List<Widget> _details(
+    ThemeData theme,
+    Video v,
+    int position,
+    int ofDay,
+    String reps,
+  ) => [
+    Text(
+      'Día ${v.dayNumber} · Ejercicio $position de $ofDay',
+      style: theme.textTheme.labelLarge?.copyWith(
+        color: theme.colorScheme.primary,
+      ),
+    ),
+    const SizedBox(height: 4),
+    Text(v.title, style: theme.textTheme.titleLarge),
+    if (reps.isNotEmpty) ...[
+      const SizedBox(height: 4),
+      Text(reps, style: theme.textTheme.titleMedium),
+    ],
+    if (v.instructions.isNotEmpty)
+      ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        title: const Text('Instrucciones'),
+        children: [
+          Align(alignment: Alignment.centerLeft, child: Text(v.instructions)),
+        ],
+      ),
+  ];
 }
 
 /// El video con sus controles encima.
@@ -444,9 +505,28 @@ class _PlayerSurface extends StatelessWidget {
     final c = controller;
     final Widget content;
     if (error != null) {
-      content = Theme(
-        data: ThemeData.dark(),
-        child: ErrorView(message: error!, onRetry: onRetry),
+      // Compacto: en un teléfono parado el recuadro del video mide ~220 dp
+      content = Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                error!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                autofocus: true,
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
       );
     } else if (c == null || !c.value.isInitialized) {
       content = const Center(child: CircularProgressIndicator());

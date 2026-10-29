@@ -76,8 +76,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         if (p.thumbnailUrl != null)
-          AspectRatio(
-            aspectRatio: 16 / 9,
+          SizedBox(
+            // 16:9, pero sin pasar de 240 dp acostado o en la TV
+            height: (MediaQuery.sizeOf(context).width * 9 / 16).clamp(0, 240),
             child: CachedNetworkImage(
               imageUrl: p.thumbnailUrl!,
               fit: BoxFit.cover,
