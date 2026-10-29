@@ -1149,6 +1149,7 @@ S0 ─▶ S1 ─▶ S2 ─▶ S3 ─▶ S4 ─▶ S5
 
 | Riesgo | Prob. | Impacto | Mitigación |
 |---|---|---|---|
+| **Un teléfono de la casa es Huawei sin servicios de Google** (equipos: POCO, Xiaomi, Huawei, Pixel, Chromecast con Google TV, TCL 60" Google TV) | Confirmado | Medio | Reproductor, R2 y lector de QR no dependen de Google. Probar en el equipo el inicio de sesión de Firebase Auth; si falla, plan B: Auth por la API REST de Firebase. Google Cast no funcionará en ese teléfono: esa persona entra en la TV por QR y ve el video directamente en la TV. |
 | La navegación con el control remoto se siente torpe | Media | Alto | Sprint 4 dedicado; probar pronto en la TV real (el video de prueba del Sprint 0). |
 | El Chromecast es lento | Media | Medio | Animaciones ligeras, portadas al tamaño mostrado, perfilar con `--profile`, desactivar Impeller si hay fallos de dibujo. |
 | Los videos superan los 10 GB de R2 | Baja | Bajo | Pagar ~USD 0.015/GB del excedente (no se reduce la resolución). |
