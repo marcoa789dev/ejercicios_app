@@ -1105,10 +1105,13 @@ Si algún día el contenido pasa de 10 GB, R2 cobra alrededor de USD 0.015 por G
 - [x] `ui_kit`: tema, `FocusableCard` (foco con D-pad), `ErrorView`, `EmptyView` + pruebas de teclado. *(Shimmer se deja para el Sprint 3, cuando haya listas reales.)*
 - [ ] Videos (§8.3): ✅ 21 videos copiados y renombrados (`Videos/{rodilla,cuello,hombro}/semana-1/`), ✅ `tools/catalogo.csv`, ⏳ compresión H.264 en curso con `tools/compress_videos.ps1` (misma resolución, ~41 % menos), ⏳ subir a R2 con rclone, ⏳ cargar el catálogo con `tools/seed.mjs` (probado en `--dry-run`).
 
-### Sprint 2 — Admin App
-- [ ] Login con guardia de admin.
-- [ ] CRUD + reordenamiento de categorías, playlists y videos; "Probar video"; transacción de agregados; duplicar playlist.
-- [ ] Integrantes: crear cuentas (instancia secundaria de Firebase), desactivar, restablecer acceso, ver/desvincular la TV.
+### Sprint 2 — Admin App *(en pausa el 29/10/2026 para adelantar el Sprint 3)*
+- [x] Login con guardia de admin (`AdminSession` + go_router; otra cuenta → "Sin permisos").
+- [x] Repositorios: `FirestoreCatalogAdminRepository` (CRUD, reordenar, duplicar, borrar en cascada, agregados recalculados con consulta tras cada escritura: el SDK de cliente no permite consultas dentro de una transacción) y `FirestoreMemberAdminRepository` + `FirebaseAccountCreator` (instancia secundaria).
+- [x] Pantallas: categorías, formulario de categoría, semanas, formulario de semana, videos por día (arrastrar reordena y cambia de día).
+- [ ] Formulario de video con "Probar video" (hoy es una pantalla "Pendiente").
+- [ ] Integrantes: lista, nuevo, detalle, restablecer acceso, ver/desvincular la TV (hoy pantallas "Pendiente"; el repositorio ya está).
+- [ ] Pruebas de los repositorios admin y de `video_arrangement.dart`.
 - **Listo cuando:** cargas una semana completa de 7 días en menos de 10 minutos, los totales siempre cuadran, y una cuenta creada desde la app puede iniciar sesión mientras tu sesión de admin sigue abierta.
 
 ### Sprint 3 — User App en teléfono
