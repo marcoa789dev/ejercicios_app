@@ -26,6 +26,13 @@ class FirestoreCatalogRepository implements CatalogRepository {
   }
 
   @override
+  Stream<Playlist?> watchPlaylist(String id) =>
+      _db.collection('playlists').doc(id).snapshots().map((d) {
+        final data = d.data();
+        return data == null ? null : playlistFromFirestore(d.id, data);
+      });
+
+  @override
   Stream<List<Playlist>> watchPlaylists(
     String categoryId, {
     bool includeInactive = false,

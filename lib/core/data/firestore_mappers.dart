@@ -112,6 +112,13 @@ Member memberFromFirestore(String id, Json d) => Member(
   lastPlaylistId: _strOrNull(d['last_playlist_id']),
 );
 
+Account accountFromFirestore(Json d) => Account(
+  memberId: _str(d['member_id']),
+  username: _str(d['username']),
+  // Sin el campo, la cuenta no se considera activa
+  isActive: _bool(d['is_active'], fallback: false),
+);
+
 TvSession tvSessionFromFirestore(String tvUid, Json d) {
   final expires = d['expires_at'];
   return TvSession(

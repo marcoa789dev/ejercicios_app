@@ -31,6 +31,22 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<Result<void>> changePassword(String current, String next) async {
+    final user = _auth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) return const Err(PermissionFailure());
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(email: email, password: current),
+      );
+      await user.updatePassword(next);
+      return const Ok(null);
+    } on FirebaseAuthException catch (e) {
+      return Err(failureFromAuth(e));
+    }
+  }
+
+  @override
   Future<void> signOut() => _auth.signOut();
 }
 

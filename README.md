@@ -17,9 +17,6 @@ Plan completo: [docs/PLAN_MAESTRO_APP_EJERCICIOS.md](docs/PLAN_MAESTRO_APP_EJERC
 flutter run --flavor user  -t lib/main_user.dart
 flutter run --flavor admin -t lib/main_admin.dart
 
-# Probar un video de R2 (pantalla de prueba del Sprint 0)
-flutter run --flavor user -t lib/main_user.dart --dart-define=TEST_VIDEO_URL=https://...
-
 # Calidad
 dart format lib test
 flutter analyze
@@ -47,6 +44,14 @@ Los videos viven en `Videos/{categoria}/semana-N/diaD-OO-titulo.mp4` (ignorado p
 .\tools\compress_videos.ps1 -Dir .\Videos   # H.264 misma resolución, ~41 % menos; reemplaza el original tras verificarlo
 rclone copy .\Videos r2:ejercicios-media --include "*.{mp4,webp}" --progress
 cd tools; npm install; node seed.mjs --dry-run; node seed.mjs   # carga tools/catalogo.csv en Firestore
+```
+
+## Integrantes
+
+Mientras la pantalla de Integrantes de la Admin App está pendiente:
+
+```powershell
+cd tools; node crear_integrante.mjs mama "Mamá"   # pide tu contraseña de admin y la del integrante
 ```
 
 ## Reglas de Firestore

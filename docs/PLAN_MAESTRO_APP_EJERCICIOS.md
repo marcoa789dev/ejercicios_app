@@ -1115,10 +1115,11 @@ Si algún día el contenido pasa de 10 GB, R2 cobra alrededor de USD 0.015 por G
 - **Listo cuando:** cargas una semana completa de 7 días en menos de 10 minutos, los totales siempre cuadran, y una cuenta creada desde la app puede iniciar sesión mientras tu sesión de admin sigue abierta.
 
 ### Sprint 3 — User App en teléfono
-- [ ] Splash, login, "¿Quién entrena hoy?", Home, detalle de playlist.
-- [ ] Reproductor con controles propios, completado manual y al 90 %, siguiente ejercicio, wakelock, errores.
-- [ ] **Guardar el avance y reanudar** (§8.6): guardado cada 10 s, al pausar, al salir y en segundo plano; reanudar 3 s antes con "Empezar de nuevo"; barras de avance en "Continuar" y en el detalle.
-- [ ] Progreso por integrante, sin conexión incluido.
+- [x] Sesión (`UserSession`: escucha `accounts/{uid}` y `members/{id}` en vivo), login con usuario, "acceso desactivado", Home ("Continuar", categorías, semanas con %), detalle por días, Ajustes (cambiar contraseña, cerrar sesión, versión). *("¿Quién entrena hoy?" ya no aplica: cada integrante tiene su cuenta.)*
+- [x] Reproductor con controles propios (±10 s, doble toque, barra, 0.75/1/1.25x, pantalla completa), completado manual y al 90 %, siguiente ejercicio, felicitación al terminar la semana, wakelock, error con "Reintentar".
+- [x] **Guardar el avance y reanudar** (§8.6) con `ProgressTracker`: cada 10 s, al pausar, al saltar, al salir y en segundo plano; reanuda 3 s antes con "Empezar de nuevo"; barras de avance en "Continuar" y en el detalle. 33 pruebas nuevas (65 en total).
+- [ ] Probar en los teléfonos reales con un integrante (`tools/crear_integrante.mjs` mientras la pantalla de Integrantes de la Admin App está pendiente).
+- [ ] Progreso sin conexión: probar en modo avión.
 - 🎯 **Hito:** la familia puede usarla en los teléfonos.
 
 ### Sprint 4 — Google TV

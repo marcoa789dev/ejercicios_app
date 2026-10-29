@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:ejercicios_app/admin/auth/admin_session.dart';
-import 'package:ejercicios_app/admin/auth/login_cubit.dart';
 import 'package:ejercicios_app/admin/widgets/admin_widgets.dart';
+import 'package:ejercicios_app/core/auth/login_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 

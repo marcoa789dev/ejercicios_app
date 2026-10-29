@@ -26,6 +26,19 @@ class Member {
   final String? lastPlaylistId;
 }
 
+/// Qué cuenta de Auth puede entrar y como quién (accounts/{authUid}).
+class Account {
+  const new({
+    required this.memberId,
+    required this.username,
+    required this.isActive,
+  });
+
+  final String memberId;
+  final String username;
+  final bool isActive;
+}
+
 /// Una TV vinculada por QR a nombre de un integrante (tv_sessions/{tvUid}).
 class TvSession {
   const new({

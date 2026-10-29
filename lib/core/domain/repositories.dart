@@ -7,6 +7,9 @@ import 'package:ejercicios_app/core/result.dart';
 abstract interface class CatalogRepository {
   Stream<List<Category>> watchCategories({bool includeInactive = false});
 
+  /// Una playlist por id; `null` si no existe.
+  Stream<Playlist?> watchPlaylist(String id);
+
   Stream<List<Playlist>> watchPlaylists(
     String categoryId, {
     bool includeInactive = false,
@@ -101,7 +104,22 @@ abstract interface class AuthRepository {
   Stream<String?> uidChanges();
   String? get currentUid;
   Future<Result<void>> signInWithEmail(String email, String password);
+
+  /// Pide la contraseña actual (Firebase exige una sesión reciente).
+  Future<Result<void>> changePassword(String current, String next);
   Future<void> signOut();
+}
+
+/// La cuenta y el integrante de la sesión actual (User App).
+abstract interface class MemberRepository {
+  /// `null` si el admin no registró esa cuenta.
+  Stream<Account?> watchAccount(String authUid);
+
+  /// `null` si no existe.
+  Stream<Member?> watchMember(String memberId);
+
+  /// Para "Continuar" en el Home.
+  Future<Result<void>> updateLastPlaylist(String memberId, String playlistId);
 }
 
 /// Progreso y avance de los videos de un integrante (§6.3, §8.6).
