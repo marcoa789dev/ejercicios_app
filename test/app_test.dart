@@ -120,6 +120,36 @@ void main() {
       expect(session.member?.displayName, 'Mamá');
     });
 
+    test('cambiar datos del integrante no refresca el router', () async {
+      auth.uid.add('u1');
+      await settle();
+      members
+          .account('u1')
+          .add(const Account(memberId: 'm1', username: 'mama', isActive: true));
+      await settle();
+      members.member('m1').add(_mama);
+      await settle();
+
+      var routerRefreshes = 0;
+      session.accessListenable.addListener(() => routerRefreshes++);
+      // Al abrir un video se guarda last_playlist_id → llega otro Member
+      members
+          .member('m1')
+          .add(
+            const Member(
+              id: 'm1',
+              displayName: 'Mamá',
+              username: 'mama',
+              order: 1,
+              lastPlaylistId: 'p1',
+            ),
+          );
+      await settle();
+
+      expect(session.member?.lastPlaylistId, 'p1');
+      expect(routerRefreshes, 0);
+    });
+
     test('si el admin lo desactiva mientras usa la app, reacciona', () async {
       auth.uid.add('u1');
       await settle();

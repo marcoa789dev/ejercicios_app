@@ -27,6 +27,11 @@ class UserSession extends ChangeNotifier {
 
   UserAccess get access => _access;
 
+  /// Avisa solo cuando cambia [access] (para la guardia del router).
+  /// `this` avisa también cuando cambian los datos del integrante.
+  ValueListenable<UserAccess> get accessListenable => _accessNotifier;
+  late final ValueNotifier<UserAccess> _accessNotifier = ValueNotifier(_access);
+
   /// El integrante, solo cuando [access] es [UserAccess.ready].
   Member? get member => _member;
 
@@ -34,6 +39,7 @@ class UserSession extends ChangeNotifier {
     if (access == _access && identical(member, _member)) return;
     _access = access;
     _member = member;
+    _accessNotifier.value = access;
     notifyListeners();
   }
 
@@ -73,6 +79,7 @@ class UserSession extends ChangeNotifier {
     unawaited(_authSub.cancel());
     unawaited(_accountSub?.cancel());
     unawaited(_memberSub?.cancel());
+    _accessNotifier.dispose();
     super.dispose();
   }
 }

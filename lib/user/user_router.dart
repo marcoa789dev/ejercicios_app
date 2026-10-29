@@ -34,7 +34,9 @@ GoRouter buildUserRouter(UserSession session) {
   }
 
   return GoRouter(
-    refreshListenable: session,
+    // Solo cambios de acceso: si refrescara con cada cambio del integrante
+    // (ej. last_playlist_id al abrir un video), reconstruiría el reproductor
+    refreshListenable: session.accessListenable,
     initialLocation: UserRoutes.home,
     redirect: (context, state) {
       final at = state.matchedLocation;
@@ -68,26 +70,30 @@ GoRouter buildUserRouter(UserSession session) {
         path: UserRoutes.home,
         builder: (_, _) => withMember((m) => HomePage(member: m)),
       ),
+      // Sin su `extra` (no debería pasar) vuelven al Home en lugar de tronar
       GoRoute(
         path: UserRoutes.playlist,
         redirect: (_, s) => s.extra is Playlist ? null : UserRoutes.home,
-        builder: (_, s) => withMember(
-          (m) => PlaylistPage(member: m, playlist: s.extra! as Playlist),
-        ),
+        builder: (_, s) => switch (s.extra) {
+          final Playlist playlist => withMember(
+            (m) => PlaylistPage(member: m, playlist: playlist),
+          ),
+          _ => const _BackHome(),
+        },
       ),
       GoRoute(
         path: UserRoutes.player,
         redirect: (_, s) => s.extra is PlayerArgs ? null : UserRoutes.home,
-        builder: (_, s) {
-          final args = s.extra! as PlayerArgs;
-          return withMember(
+        builder: (_, s) => switch (s.extra) {
+          final PlayerArgs args => withMember(
             (m) => PlayerPage(
               member: m,
               playlist: args.playlist,
               videos: args.videos,
               index: args.index,
             ),
-          );
+          ),
+          _ => const _BackHome(),
         },
       ),
       GoRoute(
@@ -97,4 +103,16 @@ GoRouter buildUserRouter(UserSession session) {
       ),
     ],
   );
+}
+
+class _BackHome extends StatelessWidget {
+  const new();
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (context.mounted) context.go(UserRoutes.home);
+    });
+    return const SplashPage();
+  }
 }
