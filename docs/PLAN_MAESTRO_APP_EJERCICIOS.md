@@ -1099,7 +1099,7 @@ Si algún día el contenido pasa de 10 GB, R2 cobra alrededor de USD 0.015 por G
 - **Listo cuando:** ambos flavors arrancan en el emulador conectados a Firebase y el video de prueba se reproduce desde R2 en un `VideoPlayer` mínimo **en el Chromecast real** (instalado por `adb`).
 
 ### Sprint 1 — Backend y núcleo
-- [x] `firestore.rules` (admin UID `EVjSnowTIpQXQ1vuv3mBpWlxGvs1`) + índices + **26 pruebas de reglas** en el emulador (`rules_test/`, `npm run test:emulador`); **desplegadas** en `ejercicios-app-fn07` (28/10/2026).
+- [x] `firestore.rules` (admin UID `tHRziboLLwag3jZu6H7bqKELVlK2`) + índices + **26 pruebas de reglas** en el emulador (`rules_test/`, `npm run test:emulador`); **desplegadas** en `ejercicios-app-fn07` (28/10/2026).
 - [x] `lib/core`: entidades (`domain/catalog.dart`, `domain/progress.dart`), mapeo Firestore, `Result`/`Failure`, `VideoUrlResolver`, `ResumePolicy` (§8.6) + pruebas.
 - [x] `FirestoreCatalogRepository` y `FirestoreProgressRepository` (incluye `savePosition`/`clearPosition` con *merge*) + pruebas con `fake_cloud_firestore`.
 - [x] `ui_kit`: tema, `FocusableCard` (foco con D-pad), `ErrorView`, `EmptyView` + pruebas de teclado. *(Shimmer se deja para el Sprint 3, cuando haya listas reales.)*

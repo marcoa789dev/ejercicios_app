@@ -6,7 +6,7 @@ service cloud.firestore {
 
     // ---------- Quién es quién ----------
     // UID de la cuenta admin (marcoa789.dev@gmail.com). Los UID no son secretos.
-    function adminUid() { return 'EVjSnowTIpQXQ1vuv3mBpWlxGvs1'; }
+    function adminUid() { return 'tHRziboLLwag3jZu6H7bqKELVlK2'; }
 
     function signedIn() { return request.auth != null; }
     function isAdmin()  { return signedIn() && request.auth.uid == adminUid(); }

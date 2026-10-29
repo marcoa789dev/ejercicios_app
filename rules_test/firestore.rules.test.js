@@ -19,7 +19,7 @@ import {
   updateDoc,
 } from 'firebase/firestore';
 
-const ADMIN = 'EVjSnowTIpQXQ1vuv3mBpWlxGvs1';
+const ADMIN = 'tHRziboLLwag3jZu6H7bqKELVlK2';
 const NONCE = 'n'.repeat(40);
 const HOUR = 60 * 60 * 1000;
 const inHours = (h) => Timestamp.fromMillis(Date.now() + h * HOUR);
