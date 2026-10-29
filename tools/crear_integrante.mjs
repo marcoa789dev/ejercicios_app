@@ -33,16 +33,31 @@ if (!/^[a-z0-9._-]{3,20}$/.test(username) || !displayName) {
 }
 
 const rl = createInterface({ input: stdin, output: stdout });
-const adminPassword = process.env.ADMIN_PASSWORD ?? await rl.question(`Contraseña de ${ADMIN_EMAIL}: `);
-const memberPassword = process.env.MEMBER_PASSWORD ?? await rl.question(`Contraseña para "${username}" (mín. 6): `);
-rl.close();
-if (memberPassword.length < 6) {
-  console.error('La contraseña del integrante debe tener al menos 6 caracteres.');
+function fail(message) {
+  rl.close();
+  console.error(`\n✗ ${message}`);
   process.exit(1);
 }
 
+// 1) Primero se comprueba la contraseña del admin
 const app = initializeApp(FIREBASE);
-await signInWithEmailAndPassword(getAuth(app), ADMIN_EMAIL, adminPassword);
+const adminPassword = process.env.ADMIN_PASSWORD
+  ?? await rl.question(`Paso 1/2 · Tu contraseña de ADMIN (${ADMIN_EMAIL}): `);
+try {
+  await signInWithEmailAndPassword(getAuth(app), ADMIN_EMAIL, adminPassword);
+} catch (e) {
+  fail(e.code === 'auth/invalid-credential'
+    ? `Firebase no aceptó la contraseña de ${ADMIN_EMAIL}. Es la misma que usaste con seed.mjs.`
+    : `No se pudo iniciar sesión como admin: ${e.code ?? e.message}`);
+}
+console.log('✓ Sesión de admin iniciada');
+
+// 2) Luego la contraseña que tendrá el integrante
+const memberPassword = process.env.MEMBER_PASSWORD
+  ?? await rl.question(`Paso 2/2 · Contraseña NUEVA para el integrante "${username}" (mín. 6): `);
+rl.close();
+if (memberPassword.length < 6) fail('La contraseña del integrante debe tener al menos 6 caracteres.');
+
 const db = getFirestore(app);
 
 const members = collection(db, 'members');
